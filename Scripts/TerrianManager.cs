@@ -34,7 +34,9 @@ public class TerrianManager : MonoBehaviour
     public SpriteRenderer prefab;
     public string MapName;
     public DrawType M_DrawType = DrawType.Alxs;
-    public OBJPool Pool;
+    private OBJPool _Pool;
+    public GameObject Mesh_prefab;
+    private ObjectInstanceRender _objectInstanceRender;
     // Start is called before the first frame update
     [ContextMenu("DrawMeshInScent")]
     public void Start()
@@ -43,20 +45,36 @@ public class TerrianManager : MonoBehaviour
         _MeshFilter = GetComponent<MeshFilter>();
         _MeshRenderer = GetComponent<MeshRenderer>();
         _MeshCollider = GetComponent<MeshCollider>();
+        _Pool = GetComponent<OBJPool>();
+        _objectInstanceRender = new ObjectInstanceRender(Mesh_prefab);
         Generate();
+
+    }
+    private int drawCount;
+    public void Update()
+    {
+        for (int i = 0; i < _objectInstanceRender.matrixs.Count; i++)
+        {
+      
+            Graphics.DrawMesh(_objectInstanceRender.mesh, _objectInstanceRender.matrixs[i], _objectInstanceRender.material, 0, null, 0, null,
+                    _objectInstanceRender.shadowCastingMode, _objectInstanceRender.receiveShadows);
+        }
+        //Debug.LogError(_objectInstanceRender.matrixs.Count);
 
     }
     public void ClearnObj()
     {
         for (int i = 0; i < transform.childCount; i++)
         {
-            Pool.RecycleObj(transform.GetChild(i).gameObject);
+            _Pool.RecycleObj(transform.GetChild(i).gameObject);
         }
     }
     private Mesh mesh;
     float lastUpdata;
     public void Refresh()
     {
+   
+        _objectInstanceRender.clear();
         if (Time.time - lastUpdata > Updatepinlv)
         {
             Hex.space = space;
@@ -74,22 +92,29 @@ public class TerrianManager : MonoBehaviour
                 }
                 if (item.Value.Dirty)
                 {
-                    if (item.Value.Obj)
-                        Pool.RecycleObj(item.Value.Obj);
-                    if (item.Value.SP != null)
+                    if (item.Value.sp_path == null || item.Value.sp_path.Length == 0)
                     {
-
-
-                        //这里可以使用对象池提升性能
-                        var obj = Pool.GetObj(item.Value.Center + new Vector3(0, 0.01f, 0));
-                        var sp = obj.GetComponent<SpriteRenderer>();
-                        sp.sprite = item.Value.SP as Sprite;
-                        item.Value.Obj = sp.gameObject;
+                        _objectInstanceRender.Remove(Matrix4x4.TRS(item.Value.Center + Vector3.up * 3, Quaternion.identity, Vector3.one * 0.2f));
                     }
                     else
                     {
-                        Pool.RecycleObj(item.Value.Obj);
+                        _objectInstanceRender.set(Matrix4x4.TRS(item.Value.Center + Vector3.up * 3, Quaternion.identity, Vector3.one * 0.2f));
                     }
+
+                    //if (item.Value.Obj)
+                    //    _Pool.RecycleObj(item.Value.Obj);
+                    //if (item.Value.SP != null)
+                    //{
+                    //    //   这里可以使用对象池提升性能
+                    //    var obj = _Pool.GetObj(item.Value.Center + new Vector3(0, 0.01f, 0));
+                    //    var sp = obj.GetComponent<SpriteRenderer>();
+                    //    sp.sprite = item.Value.SP as Sprite;
+                    //    item.Value.Obj = sp.gameObject;
+                    //}
+                    //else
+                    //{
+                    //    _Pool.RecycleObj(item.Value.Obj);
+                    //}
                 }
             }
             /// <summary>
@@ -121,8 +146,7 @@ public class TerrianManager : MonoBehaviour
         Mesh mesh = new Mesh();                               //把数据传递给Mesh,生成真正的网格
         mesh.vertices = _Vectors.ToArray();
         mesh.triangles = _Indices.ToArray();                  //mesh.uv=uvs.ToArray();
-        Debug.LogError(mesh.vertices.Length);
-        Debug.LogError(mesh.colors.Length);
+
         mesh.colors = _uvs.ToArray();
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
