@@ -2,24 +2,23 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using UnityEditor.EditorTools;
 using UnityEngine.UI;
 using System.IO;
 
-public class D : EditorTool
-{
-    public override void OnToolGUI(EditorWindow window)
-    {
 
-        // hook mouse input.
-        int controlId = GUIUtility.GetControlID(GetHashCode(), FocusType.Passive);
-        if (Event.current.type == EventType.Layout)
-            HandleUtility.AddDefaultControl(controlId);
-        if(Event.current.type == EventType.DragPerform)
-            HandleUtility.AddDefaultControl(controlId);
-        HandleUtility.Repaint();
+public class HexEventWindow:EditorWindow
+{
+    protected virtual void OnEnable()
+    {
+        HexEventSystem.windos.Add(this);
+    }
+    protected virtual void OnDisable()
+    {
+        HexEventSystem.windos.Remove(this);
     }
 }
+
+
 
 public class LoadWindow : EditorWindow
 {
@@ -36,7 +35,10 @@ public class LoadWindow : EditorWindow
     }
     private void OnEnable()
     {
-        initDir();
+        initDir();     
+    }
+    private void OnDisable()
+    {     
     }
     public void OnGUI()
     {
@@ -82,6 +84,7 @@ public class LoadWindow : EditorWindow
             MapInt[i] = i;
         }
     }
+
 }
 
 
@@ -114,13 +117,12 @@ public class CreateMapWindow:EditorWindow
             Close();
         }
     }
-
 }
 
 
 
 
-public class MeshEditor : EditorWindow
+public class MeshEditor : HexEventWindow, IHexMouseDown,IHexShiftAndDrag,IHexEnter
 {
     [MenuItem("MyTool/MeshEditor")]
     public static void Open()
@@ -168,11 +170,17 @@ public class MeshEditor : EditorWindow
         {
             ImagePaths[i] = "Assets"+files[i].Replace(Application.dataPath, "");
         }
-      
+        HexEventSystem.windos.Add(this);
+    }
+    private void OnDisable()
+    {
+        HexEventSystem.windos.Remove(this);
     }
 
     public void OnGUI()
     {
+        Mgr = ((GameObject)obj).GetComponent<TerrianManager>();
+        Handles.color = Color.yellow;
         if (Tools.current != Tool.Custom)
             EditorGUILayout.HelpBox("Press \"G\" switch to HexagonMap Tool", MessageType.Warning);
         EditorGUILayout.BeginVertical();
@@ -236,17 +244,7 @@ public class MeshEditor : EditorWindow
 
     Hex hex;
     AxialHex _ZeroAxial = new AxialHex(0, 0);
-    void OnFocus()
-    {
-        SceneView.duringSceneGui -= OnSceneGUI;
-        SceneView.duringSceneGui += OnSceneGUI;
-        Repaint();
-    }
 
-    void OnDestroy()
-    {
-        SceneView.duringSceneGui -= OnSceneGUI;
-    }
     private bool isSpaceDown = false;
     private bool isMoveDown = false;
     private bool isDrag = false;
@@ -258,92 +256,48 @@ public class MeshEditor : EditorWindow
     }
     List<AxialHex> Path=new List<AxialHex>();
     long time;
-    private void OnSceneGUI(SceneView sceneView)
+   
+
+    List<AxialHex> GetDrawAxiaHexL()
     {
-        Mgr = ((GameObject)obj).GetComponent<TerrianManager>();
-        Handles.color = Color.yellow;
-        Event e = Event.current;
-        if (e.type == EventType.MouseDown && e.button == 0)
+        List<AxialHex> l = null;
+        switch (drowType)
         {
-            isMoveDown = true;
+            case DrowType.Range:
+                l = hex.AxialHex.GetRang((ushort)(layer));
+        
+                break;
+            case DrowType.Ring:
+                l = hex.AxialHex.GetRing((ushort)(layer));    ;
+                break;
+            case DrowType.Line:
+                l = AxialHex.GetLine(_ZeroAxial, hex.AxialHex);         
+                break;
+            case DrowType.Path:
+                l = AxialHexFindPath.BFS_FindPath(_ZeroAxial, hex.AxialHex);
+                break;
+            default:
+                l = null;
+                break;
         }
-        if (e.type == EventType.MouseUp && e.button == 0)
-        {   
-            isMoveDown = false;
-        }
-        if (e.isKey)
+        return l;
+    }
+
+    public void OnHexDown(Hex hex)
+    {
+        this.hex = hex;
+        DrowHex(GetDrawAxiaHexL());
+        void DrowHex(List<AxialHex> _l)
         {
-       
-            if (e.keyCode == KeyCode.G)
-            {
-                EditorTools.SetActiveTool(typeof(D));
-              
-            }
-        };
-        isDrag = (isMoveDown && e.type == EventType.MouseMove);
-        Ray ray = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
-        RaycastHit hit;
-        if (Physics.Raycast(ray, out hit, Mathf.Infinity))
-        {
-            if (obj != null)
-            {
-                if (Mgr)
-                {
-                    Handles.SphereHandleCap(0, new Vector3(hit.point.x, hit.point.y, hit.point.z), Quaternion.identity, 0.5f, EventType.Repaint);
-                    hex = null;
-                    if (TerrianManager._hexDic.TryGetValue(Hex.WorldSpaceToAxiaCoord(hit.point), out hex))
-                    {
-
-                        List<AxialHex> l = null;
-                        switch (drowType)
-                        {
-                            case DrowType.Range:
-                                l = hex.AxialHex.GetRang((ushort)(layer));
-
-                                DrowHex(l);
-                                break;
-                            case DrowType.Ring:
-                                l = hex.AxialHex.GetRing((ushort)(layer));
-
-                                DrowHex(l);
-                                break;
-                            case DrowType.Line:
-                                l = AxialHex.GetLine(_ZeroAxial, hex.AxialHex);
-                                DrowHex(l);
-                                break;
-                            case DrowType.Path:
-                                if (e.type == EventType.MouseDown && e.button == 0)
-                                {
-                                    Path = AxialHexFindPath.BFS_FindPath(_ZeroAxial, hex.AxialHex);
-                                }
-                                if (Path != null && Path.Count > 0)
-                                    DrowHex(Path);
-                                break;
-                            default:
-                                l = null;
-                                break;
-                        }
-
-                    }
-                    //if (e.type == EventType.MouseDown && e.button == 0)
-                    //{
-                    //    Mgr.Refresh();
-                    //}
-                }
-            }
-        }
-
-        void DrowHex(List<AxialHex> l)
-        {
-            foreach (var axial in l)
+            if (_l == null || _l.Count <= 0)
+                return;
+            foreach (var axial in _l)
             {
                 hex = null;
                 if (TerrianManager._hexDic.TryGetValue(axial, out hex))
                 {
                     DrawHex(hex);
-                    if (e.type == EventType.MouseDown && e.button == 0)
-                    {
-
+            
                         TerrianManager._hexDic[axial].Y += OffsetY;
                         TerrianManager._hexDic[axial].InitPoints();
                         switch (drowObjType)
@@ -363,17 +317,34 @@ public class MeshEditor : EditorWindow
                                 break;
                             default:
                                 break;
-                        }
-                      
-                    }
-                    if (isMoveDown && e.isKey && e.keyCode == KeyCode.LeftControl)
-                    {
+                        }     
+                    
+                }
+            }
+         Mgr.Refresh();
+        }
+    }
+
+    public void OnHexShiftAndDrag(Hex hex)
+    {
+        this.hex = hex;
+        DrowHex(GetDrawAxiaHexL());
+        void DrowHex(List<AxialHex> _l)
+        {
+            if (_l == null || _l.Count <= 0)
+                return;
+            foreach (var axial in _l)
+            {
+                hex = null;
+                if (TerrianManager._hexDic.TryGetValue(axial, out hex))
+                {
+                    DrawHex(hex);
                         TerrianManager._hexDic[axial].Y = OffsetY;
                         TerrianManager._hexDic[axial].InitPoints();
                         switch (drowType)
                         {
                             case DrowType.Range:
-                                foreach (var item in l)
+                                foreach (var item in _l)
                                 {
                                     if (TerrianManager._hexDic.ContainsKey(item))
                                     {
@@ -396,15 +367,14 @@ public class MeshEditor : EditorWindow
                                                 break;
                                         }
                                     }
-                                      
-                                }                              
+                                }
                                 break;
                             case DrowType.Line:
                                 break;
                             case DrowType.Path:
                                 break;
                             case DrowType.Ring:
-                                foreach (var item in l)
+                                foreach (var item in _l)
                                 {
                                     if (TerrianManager._hexDic.ContainsKey(item))
                                         switch (drowObjType)
@@ -418,7 +388,7 @@ public class MeshEditor : EditorWindow
                                             case DrowObjType.Obstacle:
                                                 TerrianManager._hexDic[item].Obstacle = true;
                                                 break;
-                                            case DrowObjType.Obj:                                         
+                                            case DrowObjType.Obj:
                                                 TerrianManager._hexDic[item].SP_Path = ImagePath;
                                                 break;
                                             default:
@@ -429,17 +399,29 @@ public class MeshEditor : EditorWindow
                             default:
                                 break;
                         }
-                            Mgr.Refresh();                      
-                    }
+                        Mgr.Refresh();                 
                 }
-             
             }
-            if (e.type == EventType.MouseDown && e.button == 0)
-                Mgr.Refresh();
+            Mgr.Refresh();
         }
-        // 刷新界面，才能让球一直跟随
-        sceneView.Repaint();
-        HandleUtility.Repaint();
     }
 
+    public void OnHexEnter(Hex hex)
+    {
+        this.hex = hex;
+        DrowHex(GetDrawAxiaHexL());
+        void DrowHex(List<AxialHex> _l)
+        {
+            if (_l == null || _l.Count <= 0)
+                return;
+            foreach (var axial in _l)
+            {
+                hex = null;
+                if (TerrianManager._hexDic.TryGetValue(axial, out hex))
+                {
+                    DrawHex(hex);
+                }
+            }    
+        }
+    }
 }

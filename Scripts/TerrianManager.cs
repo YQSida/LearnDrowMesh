@@ -47,6 +47,13 @@ public class TerrianManager : MonoBehaviour
         _MeshCollider = GetComponent<MeshCollider>();
         _Pool = GetComponent<OBJPool>();
         _objectInstanceRender = new ObjectInstanceRender(Mesh_prefab);
+        Hex.CatcheSprite.Clear();
+        _Pool.Clear();
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            _Pool.RecycleObj(transform.GetChild(i).gameObject);
+        }
+      
         Generate();
 
     }
@@ -74,9 +81,10 @@ public class TerrianManager : MonoBehaviour
     public void Refresh()
     {
    
-        _objectInstanceRender.clear();
+       
         if (Time.time - lastUpdata > Updatepinlv)
         {
+            _objectInstanceRender.clear();
             Hex.space = space;
             _Vectors.Clear();
             _Indices.Clear();
@@ -92,29 +100,30 @@ public class TerrianManager : MonoBehaviour
                 }
                 if (item.Value.Dirty)
                 {
-                    if (item.Value.sp_path == null || item.Value.sp_path.Length == 0)
-                    {
-                        _objectInstanceRender.Remove(Matrix4x4.TRS(item.Value.Center + Vector3.up * 3, Quaternion.identity, Vector3.one * 0.2f));
-                    }
-                    else
-                    {
-                        _objectInstanceRender.set(Matrix4x4.TRS(item.Value.Center + Vector3.up * 3, Quaternion.identity, Vector3.one * 0.2f));
-                    }
-
-                    //if (item.Value.Obj)
-                    //    _Pool.RecycleObj(item.Value.Obj);
-                    //if (item.Value.SP != null)
+                    //if (item.Value.sp_path == null || item.Value.sp_path.Length == 0)
                     //{
-                    //    //   这里可以使用对象池提升性能
-                    //    var obj = _Pool.GetObj(item.Value.Center + new Vector3(0, 0.01f, 0));
-                    //    var sp = obj.GetComponent<SpriteRenderer>();
-                    //    sp.sprite = item.Value.SP as Sprite;
-                    //    item.Value.Obj = sp.gameObject;
+                    //    _objectInstanceRender.Remove(Matrix4x4.TRS(item.Value.Center + Vector3.up * 3, Quaternion.identity, Vector3.one * 0.2f));
                     //}
                     //else
                     //{
-                    //    _Pool.RecycleObj(item.Value.Obj);
+                    //    _objectInstanceRender.set(Matrix4x4.TRS(item.Value.Center + Vector3.up * 3, Quaternion.identity, Vector3.one * 0.2f));
                     //}
+
+                    if (item.Value.Obj)
+                        _Pool.RecycleObj(item.Value.Obj);
+                    if (item.Value.SP != null)
+                    {
+                        //   这里可以使用对象池提升性能
+                        var obj = _Pool.GetObj(item.Value.Center + new Vector3(0, 0.01f, 0));
+                        var sp = obj.GetComponent<SpriteRenderer>();
+                        sp.sprite = item.Value.SP as Sprite;
+                        item.Value.Obj = sp.gameObject;
+                    }
+                    else
+                    {
+                        if(item.Value.Obj!=null)
+                        _Pool.RecycleObj(item.Value.Obj);
+                    }
                 }
             }
             /// <summary>
@@ -209,6 +218,7 @@ public class TerrianManager : MonoBehaviour
                 }
                 _Vectors.AddRange(hex.CornerPonts);
                 _hexDic.Add(hex.AxialHex, hex);
+
             }
         }
     }

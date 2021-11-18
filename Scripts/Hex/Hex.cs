@@ -77,7 +77,12 @@ public partial class Hex
     public AxialHex AxialHex;
     public float Y { get { return Center.y; } set { Center.y = value; } }
     public Vector3 Center;
-    public bool Obstacle = false;
+    public bool _Obstace = false;
+    public bool Obstacle
+    {
+        get { return _Obstace; }
+        set { if (value != _Obstace){ Dirty = true;_Obstace = value; }}
+    }
     public bool Dirty=false;
     private Sprite _sp;
     public Sprite SP {

@@ -37,10 +37,15 @@ public class OBJPool : MonoBehaviour
         obj.SetActive(false);
         Pool.Enqueue(obj);
     }
+    public void Clear()
+    {
+        Pool.Clear();
+    }
+  
 
     public void OnDestroy()
     {
-        Pool.Clear();
+        Clear();
     }
 
 }
